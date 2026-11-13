@@ -1,0 +1,18 @@
+{
+  "indexes": [{
+    "collectionGroup": "work_shifts",
+    "queryScope": "COLLECTION",
+    "fields": [
+      { "fieldPath": "salonId", "order": "ASCENDING" },
+      { "fieldPath": "dateKey", "order": "ASCENDING" }
+    ]
+  }, {
+    "collectionGroup": "work_shifts",
+    "queryScope": "COLLECTION",
+    "fields": [
+      { "fieldPath": "employeeId", "order": "ASCENDING" },
+      { "fieldPath": "dateKey", "order": "ASCENDING" }
+    ]
+  }],
+  "fieldOverrides": []
+}

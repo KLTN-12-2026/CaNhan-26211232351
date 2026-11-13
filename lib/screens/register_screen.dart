@@ -372,7 +372,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       const Text(
-                                        'Đăng ký để khám phá salon và dịch vụ tóc nam',
+                                        'Đăng ký để đặt lịch cắt tóc thuận tiện hơn',
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           color: _muted,

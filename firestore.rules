@@ -1,0 +1,261 @@
+rules_version = '2';
+
+// Phase 1: staff_accounts/{authUid} -> {employeeId, active, createdAt,
+// updatedAt, updatedBy}. employee_accounts/{employeeId} -> {uid, createdAt}.
+// Both link directions and audit_events are written only by trusted callables.
+// employees.salonId remains the primary branch; no private Auth data is added.
+// Phase 2A: work_shifts/{id} contains employeeId, salonId, dateKey (VN),
+// startMinute/endMinute (30-minute grid), status, revision, seriesId and audit
+// timestamps. Critical reservation/shift writes are backend-only. Internal
+// employee_days and schedule_operations coordinate concurrent mutations.
+// Staff read shifts only at their primary branch; no staff writes.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function admin() {
+      return signedIn() &&
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function activeStaff() {
+      let accountPath = /databases/$(database)/documents/staff_accounts/$(request.auth.uid);
+      let account = get(accountPath).data;
+      let employeePath = /databases/$(database)/documents/employees/$(account.employeeId);
+      let linkPath = /databases/$(database)/documents/employee_accounts/$(account.employeeId);
+      return signedIn() && request.auth.token.email_verified == true &&
+          exists(accountPath) && account.active == true &&
+          exists(employeePath) && get(employeePath).data.get('isActive', true) == true &&
+          get(employeePath).data.salonId in ['salon_01', 'salon_02', 'salon_03'] &&
+          exists(linkPath) && get(linkPath).data.uid == request.auth.uid;
+    }
+
+    function assignedStaffBooking() {
+      return activeStaff() && resource.data.barberId ==
+          get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.employeeId;
+    }
+
+    match /staff_accounts/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || admin());
+      allow list: if admin();
+      allow write: if false;
+    }
+
+    match /employee_accounts/{employeeId} {
+      allow get: if admin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow list: if admin();
+      allow write: if false;
+    }
+
+    match /audit_events/{eventId} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    function validNewUser(userId) {
+      return signedIn() &&
+          request.auth.uid == userId &&
+          request.resource.data.keys().hasOnly([
+            'name', 'email', 'phone', 'requiresEmailVerification',
+            'emailVerified', 'createdAt', 'updatedAt'
+          ]) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() >= 2 &&
+          request.resource.data.name.size() <= 100 &&
+          request.resource.data.email is string &&
+          request.resource.data.email == request.auth.token.email &&
+          request.resource.data.phone is string &&
+          request.resource.data.phone.matches('^0[0-9]{9}$') &&
+          request.resource.data.requiresEmailVerification == true &&
+          request.resource.data.emailVerified == false &&
+          request.resource.data.createdAt is timestamp &&
+          request.resource.data.updatedAt is timestamp;
+    }
+
+    function validOwnProfileUpdate(userId) {
+      return signedIn() &&
+          request.auth.uid == userId &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['name', 'phone', 'updatedAt']) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() >= 2 &&
+          request.resource.data.name.size() <= 100 &&
+          request.resource.data.phone is string &&
+          request.resource.data.phone.matches('^0[0-9]{9}$') &&
+          request.resource.data.updatedAt is timestamp;
+    }
+
+    function validEmailVerificationUpdate(userId) {
+      return signedIn() &&
+          request.auth.uid == userId &&
+          request.auth.token.email_verified == true &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['emailVerified', 'emailVerifiedAt', 'updatedAt']) &&
+          request.resource.data.emailVerified == true &&
+          request.resource.data.emailVerifiedAt is timestamp &&
+          request.resource.data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow create: if validNewUser(userId);
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow update: if validOwnProfileUpdate(userId) ||
+          validEmailVerificationUpdate(userId);
+
+      match /notifications/{notificationId} {
+        allow read: if signedIn() && request.auth.uid == userId;
+        allow create: if admin();
+        allow update, delete: if false;
+      }
+
+      match /vouchers/{voucherId} {
+        allow read: if signedIn() &&
+            (request.auth.uid == userId || admin());
+        allow create, delete: if admin();
+        // Consumption is atomic with backend booking creation, never a client counter.
+        allow update: if admin();
+      }
+    }
+
+    match /admins/{adminId} {
+      allow read: if signedIn() && request.auth.uid == adminId;
+      allow write: if false;
+    }
+
+    match /app_settings/{settingId} {
+      allow read: if signedIn();
+      allow create, update: if admin();
+      allow delete: if false;
+    }
+
+    match /hairstyles/{hairstyleId} {
+      allow read: if signedIn();
+      allow create, update, delete: if admin();
+    }
+
+    match /employees/{employeeId} {
+      allow read: if signedIn();
+      allow create, update: if admin();
+      allow delete: if false;
+    }
+
+    match /services/{serviceId} {
+      allow read: if signedIn();
+      allow create, update, delete: if admin();
+    }
+
+    match /reports/{reportId} {
+      allow create: if signedIn() &&
+          request.resource.data.reporterId == request.auth.uid &&
+          request.resource.data.status == 'pending' &&
+          request.resource.data.type in ['employee', 'review'];
+      allow read, update, delete: if admin();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if signedIn();
+      allow create, update, delete: if admin();
+    }
+
+    match /support_chats/{userId} {
+      allow read: if signedIn() &&
+          (request.auth.uid == userId || admin());
+      allow create: if signedIn() &&
+          request.resource.data.userId == userId &&
+          (request.auth.uid == userId || admin());
+      allow update: if signedIn() &&
+          resource.data.userId == userId &&
+          request.resource.data.userId == userId &&
+          (request.auth.uid == userId || admin());
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if signedIn() &&
+            (request.auth.uid == userId || admin());
+        allow create: if signedIn() &&
+            request.resource.data.senderId == request.auth.uid &&
+            request.resource.data.content is string &&
+            request.resource.data.content.size() > 0 &&
+            request.resource.data.content.size() <= 2000 &&
+            ((request.auth.uid == userId &&
+              request.resource.data.senderRole == 'user') ||
+             (admin() && request.resource.data.senderRole == 'admin'));
+        allow update, delete: if false;
+      }
+    }
+
+    match /voucher_templates/{voucherId} {
+      allow read: if signedIn();
+      allow create, delete: if admin();
+      allow update: if admin();
+
+      match /redemptions/{userId} {
+        allow read: if signedIn() &&
+            (request.auth.uid == userId || admin());
+        allow write: if false;
+      }
+    }
+
+    match /reviews/{bookingId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn() &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.bookingId == bookingId &&
+          request.resource.data.barberRating is int &&
+          request.resource.data.barberRating >= 1 &&
+          request.resource.data.barberRating <= 5 &&
+          request.resource.data.salonRating is int &&
+          request.resource.data.salonRating >= 1 &&
+          request.resource.data.salonRating <= 5 &&
+          request.resource.data.comment is string &&
+          request.resource.data.comment.size() <= 500 &&
+          get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId ==
+              request.auth.uid &&
+          get(/databases/$(database)/documents/bookings/$(bookingId)).data.status ==
+              'completed';
+
+      allow update: if signedIn() &&
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.bookingId == bookingId &&
+          request.resource.data.barberRating is int &&
+          request.resource.data.barberRating >= 1 &&
+          request.resource.data.barberRating <= 5 &&
+          request.resource.data.salonRating is int &&
+          request.resource.data.salonRating >= 1 &&
+          request.resource.data.salonRating <= 5 &&
+          request.resource.data.comment is string &&
+          request.resource.data.comment.size() <= 500 &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['barberRating', 'salonRating', 'comment', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || admin() || assignedStaffBooking());
+      // Critical writes participate in backend employee/day transaction guards.
+      allow write: if false;
+    }
+
+    match /booking_slots/{slotId} {
+      allow read: if signedIn() && (admin() || resource.data.userId == request.auth.uid);
+      allow write: if false;
+    }
+    match /work_shifts/{shiftId} {
+      allow read: if admin() || (activeStaff() &&
+        resource.data.salonId == get(/databases/$(database)/documents/employees/$(get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.employeeId)).data.salonId);
+      allow write: if false;
+    }
+    match /employee_days/{dayId} { allow read, write: if false; }
+    match /schedule_operations/{requestId} { allow read, write: if false; }
+
+    match /payment_orders/{orderId} {
+      allow read, write: if false;
+    }
+  }
+}

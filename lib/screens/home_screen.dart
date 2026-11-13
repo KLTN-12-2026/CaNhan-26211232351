@@ -1,13 +1,35 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
 import '../data/sample_salons.dart';
 import '../models/hair_service.dart';
+import '../models/hairstyle.dart';
 import '../models/salon.dart';
-import '../services/hair_service_catalog.dart';
+import 'admin_chat_screen.dart';
+import 'admin_dashboard_screen.dart';
+import 'admin_booking_screen.dart';
+import 'admin_barber_screen.dart';
+import 'admin_staff_accounts_screen.dart';
+import 'work_shifts_screen.dart';
+import 'admin_hairstyle_screen.dart';
+import 'admin_loyalty_settings_screen.dart';
+import 'admin_notification_screen.dart';
+import 'admin_report_screen.dart';
+import 'admin_salon_contact_screen.dart';
+import 'admin_service_screen.dart';
+import 'admin_voucher_screen.dart';
+import 'booking_branch_selection_screen.dart';
+import 'booking_history_screen.dart';
 import 'hairstyle_gallery_screen.dart';
+import 'quick_booking_branch_screen.dart';
 import 'salon_detail_screen.dart';
+import 'salon_map_screen.dart';
+import 'notification_screen.dart';
 import 'profile_screen.dart';
-import 'service_catalog_screen.dart';
+import 'support_chat_screen.dart';
+import 'salon_assistant_screen.dart';
+import '../services/hair_service_catalog.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -50,28 +72,331 @@ class HomeScreen extends StatelessWidget {
     if (shouldLogout == true) await FirebaseAuth.instance.signOut();
   }
 
+  void _openBookingHistory(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const BookingHistoryScreen()),
+    );
+  }
+
+  void _openAdminBookingScreen(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminBookingScreen()));
+  }
+
+  void _openAdminDashboardScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminDashboardScreen()),
+    );
+  }
+
+  void _openAdminServiceScreen(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminServiceScreen()));
+  }
+
   void _openProfile(BuildContext context) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => const ProfileScreen(),
-    ));
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const ProfileScreen()));
+  }
+
+  void _openAdminBarberScreen(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminBarberScreen()));
+  }
+
+  void _openAdminHairstyleScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminHairstyleScreen()),
+    );
+  }
+
+  void _openAdminNotificationScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminNotificationScreen()),
+    );
+  }
+
+  void _openAdminReportScreen(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminReportScreen()));
+  }
+
+  void _openAdminVoucherScreen(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminVoucherScreen()));
+  }
+
+  void _openAdminLoyaltySettingsScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const AdminLoyaltySettingsScreen(),
+      ),
+    );
+  }
+
+  void _openSupportChat(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SupportChatScreen()));
+  }
+
+  void _openAdminChatScreen(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AdminChatScreen()));
+  }
+
+  void _openAdminSalonContactScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const AdminSalonContactScreen()),
+    );
+  }
+
+  void _openNotifications(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const NotificationScreen()));
   }
 
   void _openHairstyleGallery(BuildContext context) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => const HairstyleGalleryScreen(),
-    ));
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const HairstyleGalleryScreen()),
+    );
+  }
+
+  void _openMap(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SalonMapScreen()));
   }
 
   void _openSalon(BuildContext context, Salon salon) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => SalonDetailScreen(salon: salon),
-    ));
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => SalonDetailScreen(salon: salon)),
+    );
   }
 
-  void _openServiceCatalog(BuildContext context) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => const ServiceCatalogScreen(),
-    ));
+  void _openBookingBranchSelection(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            const BookingBranchSelectionScreen(salons: sampleSalons),
+      ),
+    );
+  }
+
+  void _openQuickBooking(
+    BuildContext context,
+    HairService service, {
+    Hairstyle? selectedHairstyle,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => QuickBookingBranchScreen(
+          selectedService: service,
+          selectedHairstyle: selectedHairstyle,
+          salons: sampleSalons,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminButton(BuildContext context) {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const SizedBox.shrink();
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!(snapshot.data?.exists ?? false)) {
+          return const SizedBox.shrink();
+        }
+        return PopupMenuButton<String>(
+          tooltip: 'Khu vực quản trị',
+          color: _panel,
+          iconColor: Colors.white,
+          icon: const Icon(Icons.admin_panel_settings_rounded),
+          onSelected: (value) {
+            if (value == 'dashboard') {
+              _openAdminDashboardScreen(context);
+            } else if (value == 'services') {
+              _openAdminServiceScreen(context);
+            } else if (value == 'hairstyles') {
+              _openAdminHairstyleScreen(context);
+            } else if (value == 'employees') {
+              _openAdminBarberScreen(context);
+            } else if (value == 'staff_accounts') {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const AdminStaffAccountsScreen(),
+                ),
+              );
+            } else if (value == 'work_shifts') {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const WorkShiftsScreen(),
+                ),
+              );
+            } else if (value == 'notifications') {
+              _openAdminNotificationScreen(context);
+            } else if (value == 'reports') {
+              _openAdminReportScreen(context);
+            } else if (value == 'vouchers') {
+              _openAdminVoucherScreen(context);
+            } else if (value == 'loyalty') {
+              _openAdminLoyaltySettingsScreen(context);
+            } else if (value == 'chats') {
+              _openAdminChatScreen(context);
+            } else if (value == 'contacts') {
+              _openAdminSalonContactScreen(context);
+            } else {
+              _openAdminBookingScreen(context);
+            }
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'work_shifts',
+              child: ListTile(
+                leading: Icon(Icons.calendar_month, color: _gold),
+                title: Text(
+                  'Lịch làm nhân viên',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'staff_accounts',
+              child: ListTile(
+                leading: Icon(Icons.manage_accounts, color: _gold),
+                title: Text(
+                  'Tài khoản nhân viên',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'dashboard',
+              child: ListTile(
+                leading: Icon(Icons.dashboard_outlined, color: _gold),
+                title: Text(
+                  'Dashboard tổng quan',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'bookings',
+              child: ListTile(
+                leading: Icon(Icons.calendar_month_outlined, color: _gold),
+                title: Text(
+                  'Quản lý lịch hẹn',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'services',
+              child: ListTile(
+                leading: Icon(Icons.design_services_outlined, color: _gold),
+                title: Text(
+                  'Quản lý dịch vụ',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'employees',
+              child: ListTile(
+                leading: Icon(Icons.badge_outlined, color: _gold),
+                title: Text(
+                  'Quản lý nhân viên',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'hairstyles',
+              child: ListTile(
+                leading: Icon(Icons.photo_library_outlined, color: _gold),
+                title: Text(
+                  'Quản lý mẫu tóc',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'contacts',
+              child: ListTile(
+                leading: Icon(Icons.phone_in_talk_outlined, color: _gold),
+                title: Text(
+                  'Quản lý hotline',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'notifications',
+              child: ListTile(
+                leading: Icon(Icons.campaign_outlined, color: _gold),
+                title: Text(
+                  'Quản lý thông báo',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'vouchers',
+              child: ListTile(
+                leading: Icon(Icons.confirmation_number_outlined, color: _gold),
+                title: Text(
+                  'Quản lý voucher',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'loyalty',
+              child: ListTile(
+                leading: Icon(Icons.workspace_premium_outlined, color: _gold),
+                title: Text(
+                  'Quản lý tích điểm',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'chats',
+              child: ListTile(
+                leading: Icon(Icons.forum_outlined, color: _gold),
+                title: Text(
+                  'Quản lý tin nhắn',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'reports',
+              child: ListTile(
+                leading: Icon(Icons.flag_outlined, color: _gold),
+                title: Text(
+                  'Quản lý báo cáo',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   static Widget _headerIcon({
@@ -92,6 +417,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _cream,
+      floatingActionButton: _buildChatButton(context),
       body: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(child: _buildTopArea(context)),
@@ -102,6 +428,54 @@ class HomeScreen extends StatelessWidget {
           const SliverToBoxAdapter(child: SizedBox(height: 36)),
         ],
       ),
+    );
+  }
+
+  Widget _buildChatButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const SizedBox.shrink();
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final isAdmin = snapshot.data?.exists ?? false;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: 'salon_assistant',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SalonAssistantScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Trợ lý AI'),
+            ),
+            const SizedBox(height: 12),
+            FloatingActionButton.extended(
+              heroTag: 'support_chat',
+              backgroundColor: _gold,
+              foregroundColor: _ink,
+              onPressed: () => isAdmin
+                  ? _openAdminChatScreen(context)
+                  : _openSupportChat(context),
+              icon: Icon(
+                isAdmin
+                    ? Icons.support_agent_rounded
+                    : Icons.chat_bubble_rounded,
+              ),
+              label: Text(
+                isAdmin ? 'Tin nhắn khách hàng' : 'Chat với admin',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -146,16 +520,88 @@ class HomeScreen extends StatelessWidget {
                 _navText('Trang chủ', selected: true),
                 const SizedBox(width: 18),
               ],
-              _headerIcon(
-                tooltip: 'Hồ sơ cá nhân',
-                icon: Icons.account_circle_outlined,
-                onPressed: () => _openProfile(context),
-              ),
-              _headerIcon(
-                tooltip: 'Đăng xuất',
-                icon: Icons.logout_rounded,
-                onPressed: () => _confirmLogout(context),
-              ),
+              _buildAdminButton(context),
+              if (!wide)
+                PopupMenuButton<String>(
+                  tooltip: 'Menu tài khoản',
+                  color: _panel,
+                  icon: const Icon(Icons.menu_rounded, color: _gold),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'map':
+                        _openMap(context);
+                      case 'bookings':
+                        _openBookingHistory(context);
+                      case 'notifications':
+                        _openNotifications(context);
+                      case 'profile':
+                        _openProfile(context);
+                      case 'logout':
+                        _confirmLogout(context);
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    for (final item in [
+                      ('map', 'Bản đồ salon', Icons.map_outlined),
+                      (
+                        'bookings',
+                        'Lịch hẹn của tôi',
+                        Icons.calendar_month_outlined,
+                      ),
+                      (
+                        'notifications',
+                        'Thông báo',
+                        Icons.notifications_none_rounded,
+                      ),
+                      (
+                        'profile',
+                        'Hồ sơ cá nhân',
+                        Icons.account_circle_outlined,
+                      ),
+                      ('logout', 'Đăng xuất', Icons.logout_rounded),
+                    ])
+                      PopupMenuItem(
+                        value: item.$1,
+                        child: Row(
+                          children: [
+                            Icon(item.$3, color: _gold, size: 20),
+                            const SizedBox(width: 12),
+                            Text(
+                              item.$2,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              if (wide) ...[
+                _headerIcon(
+                  tooltip: 'Bản đồ salon',
+                  icon: Icons.map_outlined,
+                  onPressed: () => _openMap(context),
+                ),
+                _headerIcon(
+                  tooltip: 'Lịch hẹn của tôi',
+                  icon: Icons.calendar_month_outlined,
+                  onPressed: () => _openBookingHistory(context),
+                ),
+                _headerIcon(
+                  tooltip: 'Thông báo',
+                  icon: Icons.notifications_none_rounded,
+                  onPressed: () => _openNotifications(context),
+                ),
+                _headerIcon(
+                  tooltip: 'Hồ sơ cá nhân',
+                  icon: Icons.account_circle_outlined,
+                  onPressed: () => _openProfile(context),
+                ),
+                _headerIcon(
+                  tooltip: 'Đăng xuất',
+                  icon: Icons.logout_rounded,
+                  onPressed: () => _confirmLogout(context),
+                ),
+              ],
             ],
           ),
         );
@@ -193,7 +639,7 @@ class HomeScreen extends StatelessWidget {
       builder: (context, constraints) {
         final bool wide = constraints.maxWidth >= 760;
         return Container(
-          height: wide ? 410 : 520,
+          constraints: BoxConstraints(minHeight: wide ? 410 : 520),
           width: double.infinity,
           decoration: const BoxDecoration(
             image: DecorationImage(
@@ -245,18 +691,18 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'PHONG CÁCH MỚI,\nKHÍ CHẤT MỚI',
+                      'Chất riêng bắt đầu\ntừ mái tóc.',
                       style: TextStyle(
                         color: const Color(0xFFFFF5E4),
                         fontSize: wide ? 48 : 36,
-                        height: 1.02,
+                        height: 1.15,
                         fontWeight: FontWeight.w900,
                         letterSpacing: .4,
                       ),
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Khám phá salon, dịch vụ và kiểu tóc phù hợp với phong cách của bạn.',
+                      'Đặt lịch cùng stylist phù hợp và khám phá diện mạo dành riêng cho bạn.',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 16,
@@ -269,12 +715,14 @@ class HomeScreen extends StatelessWidget {
                       runSpacing: 10,
                       children: [
                         FilledButton.icon(
-                          onPressed: () => _openServiceCatalog(context),
+                          onPressed: sampleSalons.isEmpty
+                              ? null
+                              : () => _openBookingBranchSelection(context),
                           icon: const Icon(
-                            Icons.content_cut_rounded,
+                            Icons.calendar_month_rounded,
                             size: 20,
                           ),
-                          label: const Text('XEM DỊCH VỤ'),
+                          label: const Text('ĐẶT LỊCH NGAY'),
                           style: FilledButton.styleFrom(
                             backgroundColor: _gold,
                             foregroundColor: _ink,
@@ -464,7 +912,9 @@ class HomeScreen extends StatelessWidget {
                 for (final service in services)
                   InkWell(
                     borderRadius: BorderRadius.circular(14),
-                    onTap: () => showHairServiceDetails(context, service),
+                    onTap: sampleSalons.isEmpty
+                        ? null
+                        : () => _openQuickBooking(context, service),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -712,6 +1162,9 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _showStyleDetail(BuildContext context, String name, String detail) {
+    final selectedHairstyle = defaultHairstyles.firstWhere(
+      (hairstyle) => hairstyle.name == name,
+    );
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: _panel,
@@ -732,6 +1185,27 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(detail, style: const TextStyle(color: _muted, height: 1.5)),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: sampleSalons.isEmpty
+                    ? null
+                    : () {
+                        Navigator.of(context).pop();
+                        _openQuickBooking(
+                          context,
+                          hairStyling,
+                          selectedHairstyle: selectedHairstyle,
+                        );
+                      },
+                style: FilledButton.styleFrom(
+                  backgroundColor: _gold,
+                  foregroundColor: _ink,
+                ),
+                child: const Text('Đặt lịch với kiểu tóc này'),
+              ),
+            ),
           ],
         ),
       ),

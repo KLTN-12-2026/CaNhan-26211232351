@@ -1,0 +1,74 @@
+import 'package:men_hair_booking/models/dashboard_stats.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('DashboardStats', () {
+    test(
+      'completed service value is distinct from paid receipts and unpaid balance',
+      () {
+        final stats = DashboardStats.fromBookings([
+          {
+            'status': 'completed',
+            'totalPrice': 80000,
+            'payment': {'status': 'unpaid'},
+          },
+          {
+            'status': 'completed',
+            'totalPrice': 125000,
+            'payment': {'status': 'paid', 'provider': 'salon'},
+          },
+          {
+            'status': 'cancelled',
+            'totalPrice': 90000,
+            'payment': {'status': 'paid'},
+          },
+        ]);
+        expect(stats.completedValue, 205000);
+        expect(stats.revenue, 125000);
+        expect(stats.outstanding, 80000);
+        expect(stats.paid, 1);
+      },
+    );
+    test('tổng hợp trạng thái, thanh toán và doanh thu hoàn thành', () {
+      final stats = DashboardStats.fromBookings([
+        {
+          'status': 'completed',
+          'totalPrice': 150000,
+          'payment': {'status': 'paid'},
+        },
+        {
+          'status': 'pending',
+          'totalPrice': 80000,
+          'payment': {'status': 'unpaid', 'choice': 'pay_now'},
+        },
+        {
+          // Dữ liệu cũ: thanh toán sau từng được lưu ở trạng thái pending.
+          'status': 'pending',
+          'totalPrice': 120000,
+          'payment': {'status': 'unpaid', 'choice': 'pay_later'},
+        },
+        {
+          'status': 'cancelled',
+          'totalPrice': 30000,
+          'payment': {'status': 'unpaid'},
+        },
+      ]);
+
+      expect(stats.total, 4);
+      expect(stats.completed, 1);
+      expect(stats.pending, 1);
+      expect(stats.confirmed, 1);
+      expect(stats.cancelled, 1);
+      expect(stats.paid, 1);
+      expect(stats.revenue, 150000);
+      expect(stats.cancellationRate, closeTo(1 / 4, 0.0001));
+    });
+
+    test('không chia cho không khi chưa có lịch', () {
+      final stats = DashboardStats.fromBookings(const []);
+      expect(stats.total, 0);
+      expect(stats.revenue, 0);
+      expect(stats.cancellationRate, 0);
+    });
+  });
+}

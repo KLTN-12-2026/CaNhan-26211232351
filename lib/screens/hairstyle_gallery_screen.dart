@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../data/sample_salons.dart';
 import '../models/hairstyle.dart';
 import '../services/hairstyle_service.dart';
+import 'quick_booking_branch_screen.dart';
 
 class HairstyleGalleryScreen extends StatelessWidget {
   const HairstyleGalleryScreen({super.key});
@@ -95,7 +97,7 @@ class HairstyleGalleryScreen extends StatelessWidget {
                     ),
                     SizedBox(height: 7),
                     Text(
-                      'Chọn một mẫu để xem hình ảnh và mô tả chi tiết.',
+                      'Chọn một mẫu để xem chi tiết và đặt lịch với stylist.',
                       style: TextStyle(color: Color(0xFF66707C), height: 1.4),
                     ),
                   ],
@@ -122,7 +124,7 @@ class HairstyleGalleryScreen extends StatelessWidget {
       backgroundColor: _panel,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 4, 22, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -149,7 +151,34 @@ class HairstyleGalleryScreen extends StatelessWidget {
                 hairstyle.description,
                 style: const TextStyle(color: Colors.white70, height: 1.5),
               ),
-
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: sampleSalons.isEmpty
+                      ? null
+                      : () {
+                          Navigator.of(sheetContext).pop();
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => QuickBookingBranchScreen(
+                                selectedService: hairStyling,
+                                selectedHairstyle: hairstyle,
+                                salons: sampleSalons,
+                              ),
+                            ),
+                          );
+                        },
+                  icon: const Icon(Icons.calendar_month_rounded),
+                  label: const Text('ĐẶT LỊCH VỚI KIỂU TÓC NÀY'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _gold,
+                    foregroundColor: _ink,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

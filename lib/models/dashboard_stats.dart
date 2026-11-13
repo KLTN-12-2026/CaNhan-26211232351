@@ -1,0 +1,66 @@
+class DashboardStats {
+  const DashboardStats({
+    required this.total,
+    required this.pending,
+    required this.confirmed,
+    required this.completed,
+    required this.cancelled,
+    required this.paid,
+    required this.revenue,
+    this.completedValue = 0,
+  });
+
+  final int total;
+  final int pending;
+  final int confirmed;
+  final int completed;
+  final int cancelled;
+  final int paid;
+  final int revenue;
+  final int completedValue;
+  int get outstanding => completedValue - revenue;
+
+  double get cancellationRate => total == 0 ? 0 : cancelled / total;
+
+  factory DashboardStats.fromBookings(Iterable<Map<String, dynamic>> bookings) {
+    var total = 0;
+    var pending = 0;
+    var confirmed = 0;
+    var completed = 0;
+    var cancelled = 0;
+    var paid = 0;
+    var revenue = 0;
+    var completedValue = 0;
+    for (final booking in bookings) {
+      total++;
+      final rawStatus = booking['status']?.toString() ?? 'pending';
+      final payment = booking['payment'];
+      final isPaid = payment is Map && payment['status'] == 'paid';
+      final isPayLater = payment is Map && payment['choice'] == 'pay_later';
+      // Tương thích lịch cũ: trước đây lịch thanh toán sau được lưu pending.
+      final status = rawStatus == 'pending' && (isPaid || isPayLater)
+          ? 'confirmed'
+          : rawStatus;
+      if (status == 'pending') pending++;
+      if (status == 'confirmed') confirmed++;
+      if (status == 'completed') completed++;
+      if (status == 'cancelled') cancelled++;
+      if (isPaid && status != 'cancelled') paid++;
+      if (status == 'completed') {
+        final amount = (booking['totalPrice'] as num?)?.toInt() ?? 0;
+        completedValue += amount;
+        if (isPaid) revenue += amount;
+      }
+    }
+    return DashboardStats(
+      total: total,
+      pending: pending,
+      confirmed: confirmed,
+      completed: completed,
+      cancelled: cancelled,
+      paid: paid,
+      revenue: revenue,
+      completedValue: completedValue,
+    );
+  }
+}

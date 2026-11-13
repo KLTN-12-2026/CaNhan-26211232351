@@ -1,0 +1,24 @@
+{
+  "name": "men-hair-booking-functions",
+  "private": true,
+  "main": "src/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/staff.emulator.test.cjs test/scheduling.emulator.test.cjs test/review_ratings.emulator.test.cjs test/review_ratings.test.cjs test/salon_advisor.test.cjs ../cloudflare_worker/test/firestore-rest.emulator.test.js"
+  },
+  "dependencies": {
+    "firebase-admin": "14.5.0",
+    "firebase-functions": "7.4.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.0",
+    "firebase": "12.4.0"
+  },
+  "overrides": {
+    "@firebase/app": "0.14.4",
+    "@firebase/app-compat": "0.5.4",
+    "@grpc/grpc-js": "^1.13.6"
+  }
+}

@@ -1,0 +1,499 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+
+import '../data/sample_salons.dart';
+import '../models/dashboard_stats.dart';
+import '../models/staff_activity.dart';
+import '../widgets/salon_page_intro.dart';
+
+enum _DashboardPeriod { today, day, sevenDays, thirtyDays, custom, all }
+
+class AdminDashboardScreen extends StatefulWidget {
+  const AdminDashboardScreen({super.key, this.bookingsStream, this.now});
+  final Stream<QuerySnapshot<Map<String, dynamic>>>? bookingsStream;
+  final DateTime? now;
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  static const _ink = Color(0xFF08111E);
+  static const _panel = Color(0xFF111B29);
+  static const _gold = Color(0xFFF6C768);
+  static const _muted = Color(0xFFB8C0CC);
+  _DashboardPeriod _period = _DashboardPeriod.thirtyDays;
+
+  DateTimeRange? _customRange;
+  DateTime? _selectedDay;
+  DateTime get _today => vietnamDay(widget.now ?? DateTime.now());
+  StaffDateRange get _range => switch (_period) {
+    _DashboardPeriod.today => StaffDateRange(StaffPeriod.today, _today),
+    _DashboardPeriod.day => StaffDateRange(StaffPeriod.day, _selectedDay!),
+    _DashboardPeriod.sevenDays => StaffDateRange.custom(
+      _today.subtract(const Duration(days: 6)),
+      _today,
+    ),
+    _DashboardPeriod.thirtyDays => StaffDateRange.custom(
+      _today.subtract(const Duration(days: 29)),
+      _today,
+    ),
+    _DashboardPeriod.custom => StaffDateRange.custom(
+      _customRange!.start,
+      _customRange!.end,
+    ),
+    _DashboardPeriod.all => StaffDateRange(StaffPeriod.all, _today),
+  };
+
+  Future<void> _chooseDay() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _selectedDay ?? _today,
+      currentDate: _today,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Chọn một ngày',
+      confirmText: 'Áp dụng',
+      cancelText: 'Hủy',
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _selectedDay = selected;
+      _period = _DashboardPeriod.day;
+    });
+  }
+
+  Future<void> _chooseRange() async {
+    final selected = await showDateRangePicker(
+      context: context,
+      currentDate: _today,
+      initialDateRange:
+          _customRange ??
+          DateTimeRange(
+            start: _range.start ?? _today,
+            end: _range.end?.subtract(const Duration(days: 1)) ?? _today,
+          ),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Chọn từ ngày – đến ngày',
+      saveText: 'Áp dụng',
+      confirmText: 'Áp dụng',
+      cancelText: 'Hủy',
+      fieldStartLabelText: 'Từ ngày',
+      fieldEndLabelText: 'Đến ngày',
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _customRange = selected;
+      _period = _DashboardPeriod.custom;
+    });
+  }
+
+  String _money(int value) {
+    final raw = value.toString();
+    final output = StringBuffer();
+    for (var i = 0; i < raw.length; i++) {
+      if (i > 0 && (raw.length - i) % 3 == 0) output.write('.');
+      output.write(raw[i]);
+    }
+    return '$outputđ';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _ink,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0B1420),
+        foregroundColor: Colors.white,
+        title: const Text('Tổng quan quản trị'),
+      ),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream:
+            widget.bookingsStream ??
+            FirebaseFirestore.instance.collection('bookings').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Không thể tải thống kê: ${snapshot.error}',
+                style: const TextStyle(color: Colors.white),
+              ),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator(color: _gold));
+          }
+          final range = _range;
+          final bookings = snapshot.data!.docs
+              .where((doc) {
+                if (_period == _DashboardPeriod.all) return true;
+                final createdAt = (doc.data()['createdAt'] as Timestamp?)
+                    ?.toDate();
+                return createdAt != null && range.containsInstant(createdAt);
+              })
+              .map((doc) => doc.data())
+              .toList();
+          final stats = DashboardStats.fromBookings(bookings);
+          return _content(bookings, stats);
+        },
+      ),
+    );
+  }
+
+  Widget _content(List<Map<String, dynamic>> bookings, DashboardStats stats) {
+    final bySalon = {
+      for (final salon in sampleSalons)
+        salon.id: bookings.where((item) => item['salonId'] == salon.id).length,
+    };
+    final maximum = bySalon.values.fold<int>(1, (a, b) => a > b ? a : b);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1150),
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            const SalonPageIntro(
+              label: 'KHÔNG GIAN QUẢN TRỊ',
+              title: 'Mọi lịch hẹn. Một góc nhìn.',
+              description:
+                  'Theo dõi hoạt động chi nhánh và chất lượng phục vụ mỗi ngày.',
+              icon: Icons.space_dashboard_outlined,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dashboard vận hành',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        'Số liệu cập nhật trực tiếp từ Firestore',
+                        style: TextStyle(color: _muted),
+                      ),
+                    ],
+                  ),
+                ),
+                DropdownButton<_DashboardPeriod>(
+                  value: _period,
+                  dropdownColor: _panel,
+                  style: const TextStyle(color: Colors.white),
+                  items: const [
+                    DropdownMenuItem(
+                      value: _DashboardPeriod.today,
+                      child: Text('Hôm nay'),
+                    ),
+                    DropdownMenuItem(
+                      value: _DashboardPeriod.sevenDays,
+                      child: Text('7 ngày'),
+                    ),
+                    DropdownMenuItem(
+                      value: _DashboardPeriod.thirtyDays,
+                      child: Text('30 ngày'),
+                    ),
+                    DropdownMenuItem(
+                      value: _DashboardPeriod.day,
+                      child: Text('Chọn ngày'),
+                    ),
+                    DropdownMenuItem(
+                      value: _DashboardPeriod.custom,
+                      child: Text('Chọn khoảng ngày'),
+                    ),
+                    DropdownMenuItem(
+                      value: _DashboardPeriod.all,
+                      child: Text('Tất cả'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == _DashboardPeriod.day) {
+                      _chooseDay();
+                    } else if (value == _DashboardPeriod.custom) {
+                      _chooseRange();
+                    } else if (value != null) {
+                      setState(() => _period = value);
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_period == _DashboardPeriod.day)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(foregroundColor: _gold),
+                  onPressed: _chooseDay,
+                  icon: const Icon(Icons.calendar_today),
+                  label: Text('Ngày ${staffDate(_selectedDay!)}'),
+                ),
+              ),
+            if (_period == _DashboardPeriod.custom)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(foregroundColor: _gold),
+                  onPressed: _chooseRange,
+                  icon: const Icon(Icons.date_range),
+                  label: Text(
+                    'Từ ${staffDate(_range.start!)} đến ${staffDate(_range.lastDay!)}',
+                  ),
+                ),
+              ),
+            Text(
+              _period == _DashboardPeriod.all
+                  ? 'Toàn bộ lịch · Theo ngày tạo lịch (giờ Việt Nam)'
+                  : '${_range.label} · Theo ngày tạo lịch (giờ Việt Nam)',
+              style: const TextStyle(color: _muted, fontSize: 12),
+            ),
+            const SizedBox(height: 20),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth >= 900
+                    ? (constraints.maxWidth - 36) / 4
+                    : constraints.maxWidth >= 540
+                    ? (constraints.maxWidth - 12) / 2
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: _metric(
+                        'Tổng lịch',
+                        '${stats.total}',
+                        Icons.event_note_rounded,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _metric(
+                        'Chờ thanh toán',
+                        '${stats.pending}',
+                        Icons.schedule_rounded,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _metric(
+                        'Đã hoàn thành',
+                        '${stats.completed}',
+                        Icons.task_alt_rounded,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _metric(
+                        'Đã thu • Lịch hoàn thành',
+                        _money(stats.revenue),
+                        Icons.payments_rounded,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 14,
+              runSpacing: 12,
+              children: [
+                Text(
+                  'Giá trị dịch vụ hoàn thành: ${_money(stats.completedValue)}',
+                  style: const TextStyle(color: _muted),
+                ),
+                Text(
+                  'Còn chưa thu: ${_money(stats.outstanding)}',
+                  style: const TextStyle(
+                    color: _gold,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Số tiền tính trên các lịch hoàn thành trong bộ lọc hiện tại (theo ngày tạo lịch).',
+              style: TextStyle(color: _muted, fontSize: 12),
+            ),
+            const SizedBox(height: 18),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 760;
+                if (wide) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 3, child: _branchPanel(bySalon, maximum)),
+                      const SizedBox(width: 14),
+                      Expanded(flex: 2, child: _qualityPanel(stats)),
+                    ],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _branchPanel(bySalon, maximum),
+                    const SizedBox(height: 14),
+                    _qualityPanel(stats),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _metric(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _decoration(),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: const Color(0x22F6C768),
+            child: Icon(icon, color: _gold),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: _muted)),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _branchPanel(Map<String, int> bySalon, int maximum) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: _decoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Lịch hẹn theo chi nhánh',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 20),
+          for (final salon in sampleSalons) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    salon.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                Text(
+                  '${bySalon[salon.id]} lịch',
+                  style: const TextStyle(color: _gold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            LinearProgressIndicator(
+              value: (bySalon[salon.id] ?? 0) / maximum,
+              minHeight: 9,
+              borderRadius: BorderRadius.circular(9),
+              color: _gold,
+              backgroundColor: const Color(0xFF243247),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _qualityPanel(DashboardStats stats) {
+    final cancellation = (stats.cancellationRate * 100).toStringAsFixed(1);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: _decoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Chất lượng vận hành',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 18),
+          _qualityRow('Đã xác nhận', stats.confirmed, Icons.verified_rounded),
+          _qualityRow(
+            'Đã thanh toán',
+            stats.paid,
+            Icons.account_balance_wallet_rounded,
+          ),
+          _qualityRow('Đã hủy', stats.cancelled, Icons.event_busy_rounded),
+          const Divider(color: Color(0x334D6380)),
+          Text(
+            'Tỷ lệ hủy: $cancellation%',
+            style: const TextStyle(color: _gold, fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _qualityRow(String label, int value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Icon(icon, color: _gold, size: 20),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(label, style: const TextStyle(color: _muted)),
+          ),
+          Text(
+            '$value',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  BoxDecoration _decoration() => BoxDecoration(
+    color: _panel,
+    borderRadius: BorderRadius.circular(20),
+    border: Border.all(color: const Color(0x33F6C768)),
+  );
+}

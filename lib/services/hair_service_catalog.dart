@@ -13,7 +13,7 @@ class HairServiceCatalog {
       _firestore.collection('services');
 
   Stream<List<HairService>> watchActive() {
-    return _watchAll().map(
+    return watchAll().map(
       (items) => items
           .where((item) => item.isActive)
           .map((item) => item.service)
@@ -27,22 +27,22 @@ class HairServiceCatalog {
     );
   }
 
-  Stream<List<_ServiceCatalogItem>> _watchAll() {
+  Stream<List<ServiceAdminItem>> watchAll() {
     return _collection.snapshots().map((snapshot) {
       final remote = {
         for (final doc in snapshot.docs)
-          doc.id: _ServiceCatalogItem(
+          doc.id: ServiceAdminItem(
             service: HairService.fromMap(doc.id, doc.data()),
             isActive: doc.data()['isActive'] as bool? ?? true,
             order: (doc.data()['order'] as num?)?.toInt() ?? 999,
           ),
       };
-      final result = <_ServiceCatalogItem>[];
+      final result = <ServiceAdminItem>[];
       for (var index = 0; index < commonServices.length; index++) {
         final fallback = commonServices[index];
         result.add(
           remote.remove(fallback.id) ??
-              _ServiceCatalogItem(
+              ServiceAdminItem(
                 service: fallback,
                 isActive: true,
                 order: index,
@@ -55,10 +55,47 @@ class HairServiceCatalog {
     });
   }
 
+  Future<void> save({
+    required HairService service,
+    required bool isActive,
+    required int order,
+  }) {
+    return _collection.doc(service.id).set({
+      ...service.toMap(),
+      'isActive': isActive,
+      'order': order,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> create(HairService service) {
+    return _collection.doc(service.id).set({
+      ...service.toMap(),
+      'isActive': true,
+      'order': 999,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> delete(String serviceId) async {
+    final fallbackIndex = commonServices.indexWhere(
+      (service) => service.id == serviceId,
+    );
+    if (fallbackIndex >= 0) {
+      await save(
+        service: commonServices[fallbackIndex],
+        isActive: false,
+        order: fallbackIndex,
+      );
+      return;
+    }
+    await _collection.doc(serviceId).delete();
+  }
 }
 
-class _ServiceCatalogItem {
-  const _ServiceCatalogItem({
+class ServiceAdminItem {
+  const ServiceAdminItem({
     required this.service,
     required this.isActive,
     required this.order,
